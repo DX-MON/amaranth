@@ -231,9 +231,25 @@ class OpenLANEPlatform(TemplatedPlatform):
         ports = kwargs['ports']
 
         fragment = Fragment.get(elaboratable, self)
+        def add_pin_fragment(pin, pin_fragment):
+            pin_fragment = Fragment.get(pin_fragment, self)
+            if not isinstance(pin_fragment, Instance):
+                pin_fragment.flatten = True
+            fragment.add_subfragment(pin_fragment, name="pin_{}".format(pin.name))
+
+        for pin, port, attrs, invert in self.iter_single_ended_pins():
+            if pin.dir == "i":
+                add_pin_fragment(pin, self.get_input(pin, port, attrs, invert))
+            if pin.dir == "o":
+                add_pin_fragment(pin, self.get_output(pin, port, attrs, invert))
+            if pin.dir == "oe":
+                add_pin_fragment(pin, self.get_tristate(pin, port, attrs, invert))
+            if pin.dir == "io":
+                add_pin_fragment(pin, self.get_input_output(pin, port, attrs, invert))
+
         for resource, pin, port, attrs in self._ports:
-            for signal in pin.fields:
-                ports.append(pin[signal])
+            for signal in port.io:
+                ports.append(signal)
 
         fragment = fragment.prepare(missing_domain=self.create_missing_domain(ports), **kwargs)
         rtlil_text, self._name_map = rtlil.convert_fragment(fragment, name)
